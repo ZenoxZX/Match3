@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CommandSystem;
 using Cysharp.Threading.Tasks;
 using GridSystem;
@@ -19,6 +20,8 @@ namespace Game
         [Inject] private Shape.Factory m_ShapeFactory;
         [Inject] private GameEvents m_GameEvents;
 
+        private readonly HashSet<Shape> m_MatchBuffer = new HashSet<Shape>();
+        
         private GridTile<Shape> m_GridTile;
         private IGridTile m_Tile;
         private Transform m_ShapeParent;
@@ -70,6 +73,8 @@ namespace Game
             );
             
             m_SwapCommand.Execute();
+            
+           
         }
         
         public Vector3 GetWorldPosition(int x, int y) 
@@ -98,6 +103,77 @@ namespace Game
 
             shape = null;
             return false;
+        }
+        
+        private bool HasMatch(out IEnumerable<Shape> matches)
+        {
+            m_MatchBuffer.Clear();
+            
+            for (int x = 0; x < m_Width; x++)
+            {
+                for (int y = 0; y < m_Height; y++)
+                {
+                    Shape shape = (Shape)m_GridTile.Get(x, y);
+                    
+                    if (shape == null)
+                        continue;
+                    
+                    Shape v1 = (Shape)m_Tile.GetNeighbor(x, y, 1, 0);
+                    Shape v2 = (Shape)m_Tile.GetNeighbor(x, y, 2, 0);
+                    Shape h1 = (Shape)m_Tile.GetNeighbor(x, y, 0, 1);
+                    Shape h2 = (Shape)m_Tile.GetNeighbor(x, y, 0, 2);
+
+                    if (v1 != null && v2 != null)
+                    {
+                        if (shape.MyType == v1.MyType && shape.MyType == v2.MyType)
+                        {
+                            m_MatchBuffer.Add(shape);
+                            m_MatchBuffer.Add(v1);
+                            m_MatchBuffer.Add(v2);
+                        }
+                    }
+
+                    if (h1 != null && h2 != null)
+                    {
+                        if (shape.MyType == h1.MyType && shape.MyType == h2.MyType)
+                        {
+                            m_MatchBuffer.Add(shape);
+                            m_MatchBuffer.Add(h1);
+                            m_MatchBuffer.Add(h2);
+                        }
+                    }
+                }
+            }
+            
+            matches = m_MatchBuffer;
+            return m_MatchBuffer.Count > 0;
+        }
+        
+        [Button]
+        private void Arrange()
+        {
+            for (int x = 0; x < m_Width; x++)
+            {
+                for (int y = 0; y < m_Height; y++)
+                {
+                    Shape shape = (Shape)m_GridTile.Get(x, y);
+                    
+                    if (shape == null)
+                    {
+                        continue;
+                    }
+                    
+                    int vertical = 1;
+                    bool hasLower = m_Tile.IsInside(x, y - vertical) && m_Tile.Get(x, y - vertical) == null;
+
+                    while (hasLower)
+                    {
+                        m_GridTile.Swap(x, y, x, y - vertical);
+                        vertical++;
+                        hasLower = m_Tile.IsInside(x, y - vertical) && m_Tile.Get(x, y - vertical) == null;
+                    }
+                }
+            }
         }
 
         private Shape CreateShape(Shape.Type type, int x, int y)
@@ -159,7 +235,7 @@ namespace Game
             {
                 Swap(m_CurrentShape.X, m_CurrentShape.Y, (int)vector2.x, (int)vector2.y);
                 m_IsSwapping = true;
-                bool isMatch = false;
+                bool isMatch = HasMatch(out IEnumerable<Shape> matches);
 
                 if (!isMatch)
                 {
@@ -177,7 +253,12 @@ namespace Game
                 
                 else
                 {
-                    // TODO: Implement match logic
+                    m_IsSwapping = false;
+                    foreach (Shape match in matches)
+                    {
+                        m_GridTile.Set(match.X, match.Y, null);
+                        Destroy(match.gameObject);
+                    }
                 }
 
                 m_CurrentShape = null;

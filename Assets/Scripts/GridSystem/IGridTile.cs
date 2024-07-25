@@ -27,8 +27,8 @@ namespace GridSystem
             if (directionX == 0 && directionY == 0)
                 throw new System.ArgumentException("Direction cannot be (0, 0)");
             
-            directionX = Mathf.Clamp(directionX, -1, 1);
-            directionY = Mathf.Clamp(directionY, -1, 1);
+            // directionX = Mathf.Clamp(directionX, -1, 1);
+            // directionY = Mathf.Clamp(directionY, -1, 1);
             return IsInside(x + directionX, y + directionY) ? Get(x + directionX, y + directionY) : null;
         }
     }
